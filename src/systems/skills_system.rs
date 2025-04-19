@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::shared::components::Skills;
 use crate::client::input::Player;
 use crate::client::terrain::ResourceNodeType;
+use crate::systems::inventory_system::{InventoryUpdateEvent, get_item_id_for_resource};
 
 // Component for floating text effects
 #[derive(Component)]
@@ -72,10 +73,10 @@ pub struct ResourceGatheringEvent {
 #[derive(Component)]
 pub struct GatheringInProgress {
     pub resource_type: ResourceNodeType,
-    #[allow(dead_code)]
     pub target_entity: Entity,
     pub progress: f32,
     pub total_time: f32,
+    pub target_position: Option<Vec3>,
 }
 
 // Handle skill experience gain
@@ -151,8 +152,10 @@ fn handle_resource_gathering(
     mut query: Query<(Entity, &mut Skills), With<Player>>,
     player_transform_query: Query<&Transform, With<Player>>,
     mut gathering_query: Query<(Entity, &mut GatheringInProgress)>,
+    resource_query: Query<(Entity, &Transform, &ResourceNodeType)>,
     time: Res<Time>,
     mut skill_events: EventWriter<SkillExperienceEvent>,
+    mut inventory_events: EventWriter<InventoryUpdateEvent>,
 ) {
     // First, process ongoing gathering
     for (entity, mut gathering) in gathering_query.iter_mut() {
@@ -208,6 +211,16 @@ fn handle_resource_gathering(
                 ));
             }
 
+            // Add gathered resource to inventory
+            let item_id = get_item_id_for_resource(&gathering.resource_type);
+            let quantity = 1; // Basic quantity, could be randomized or based on skills
+
+            // Send inventory update event
+            inventory_events.send(InventoryUpdateEvent {
+                item_id,
+                quantity: quantity as i32, // Positive for adding
+            });
+
             // Remove gathering component
             commands.entity(entity).remove::<GatheringInProgress>();
 
@@ -227,11 +240,21 @@ fn handle_resource_gathering(
             // Start gathering
             let gathering_time = settings.gathering_time_base;
 
+            // Get the position of the resource being gathered
+            let mut target_position = None;
+            if let Ok((_, resource_transform, _)) = resource_query.get(event.entity) {
+                target_position = Some(resource_transform.translation);
+                println!("Resource position set: {:?}", resource_transform.translation);
+            } else {
+                println!("Could not find resource position for entity: {:?}", event.entity);
+            }
+
             commands.entity(player_entity).insert(GatheringInProgress {
                 resource_type: event.resource_type.clone(),
                 target_entity: event.entity,
                 progress: 0.0,
                 total_time: gathering_time,
+                target_position,
             });
 
             println!("Started gathering: {:?}", event.resource_type);
@@ -246,7 +269,7 @@ fn check_resource_interaction(
     resource_query: Query<(Entity, &Transform, &ResourceNodeType)>,
     mut gathering_events: EventWriter<ResourceGatheringEvent>,
 ) {
-    // Only check when the E key is pressed
+    // Only check when the F key is pressed
     if keyboard_input.just_pressed(KeyCode::F) {
         if let Ok(player_transform) = player_query.get_single() {
             // Find the closest resource within interaction range

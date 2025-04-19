@@ -1,9 +1,9 @@
 use bevy::prelude::*;
-use bevy::render::mesh::shape::Cube;
 use crate::client::input::Player;
 use crate::client::physics::{Velocity, Acceleration, Collider, ColliderShape, Gravity, OnGround, JumpStrength};
 use crate::shared::components::{Skills, Health};
 use crate::systems::combat_system::CombatState;
+use crate::systems::inventory_system::Inventory;
 
 pub struct RenderingPlugin;
 
@@ -39,14 +39,17 @@ fn follow_camera(player_query: Query<&Transform, With<Player>>, mut camera_query
 /// Set up a simple 3D scene with a camera and some objects
 fn setup_scene(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    _meshes: ResMut<Assets<Mesh>>,
+    _materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Add a camera
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    // Add a camera with follow and zoom capabilities
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(-2.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        crate::client::camera::MainCamera::default(),
+    ));
 
     // Add a light
     commands.spawn(PointLightBundle {
@@ -59,11 +62,10 @@ fn setup_scene(
         ..default()
     });
 
-    // Add a cube representing a player with physics components
+    // Add a player entity with physics components (visual model will be added by CharacterPlugin)
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Cube { size: 1.0 }.into()),
-            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        // No PbrBundle here - the character model will be added by the CharacterPlugin
+        SpatialBundle {
             transform: Transform::from_xyz(0.0, 5.0, 0.0), // Start a bit above ground to avoid collision issues
             ..default()
         },
@@ -106,5 +108,10 @@ fn setup_scene(
             maximum: 100,
         },
         CombatState::default(),
+        Inventory {
+            items: std::collections::HashMap::new(),
+            capacity: 28, // Standard RuneScape inventory size
+            gold: 0,
+        },
     ));
 }
