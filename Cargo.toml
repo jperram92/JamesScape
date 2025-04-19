@@ -1,0 +1,36 @@
+[package]
+name = "jamesscape"
+version = "0.1.0"
+edition = "2021"
+description = "A RuneScape-style MMORPG built with Rust and Bevy"
+authors = ["James"]
+
+[dependencies]
+bevy = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+renet = "0.0.14"
+renet_visualizer = "0.0.4"
+bevy_renet = "0.0.10"
+bevy_egui = "0.23"
+rand = "0.8"
+noise = "0.8"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+
+# Workspace configuration will be added later when we have crates
+# [workspace]
+# members = [
+#     "crates/*",
+# ]
