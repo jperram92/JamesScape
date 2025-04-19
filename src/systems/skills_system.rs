@@ -3,6 +3,14 @@ use crate::shared::components::Skills;
 use crate::client::input::Player;
 use crate::client::terrain::ResourceNodeType;
 
+// Component for floating text effects
+#[derive(Component)]
+pub struct FloatingText {
+    pub lifetime: Timer,
+    pub velocity: Vec3,
+    pub fade_start: f32,
+}
+
 pub struct SkillsPlugin;
 
 impl Plugin for SkillsPlugin {
@@ -14,6 +22,7 @@ impl Plugin for SkillsPlugin {
                handle_skill_experience,
                handle_resource_gathering,
                check_resource_interaction,
+               update_floating_text,
            ));
     }
 }
@@ -140,6 +149,7 @@ fn handle_resource_gathering(
     mut events: EventReader<ResourceGatheringEvent>,
     settings: Res<SkillsSettings>,
     mut query: Query<(Entity, &mut Skills), With<Player>>,
+    player_transform_query: Query<&Transform, With<Player>>,
     mut gathering_query: Query<(Entity, &mut GatheringInProgress)>,
     time: Res<Time>,
     mut skill_events: EventWriter<SkillExperienceEvent>,
@@ -172,6 +182,31 @@ fn handle_resource_gathering(
                 skill_name: skill_name.to_string(),
                 experience,
             });
+
+            // Create a floating text to show XP gain
+            if let Ok(player_transform) = player_transform_query.get_single() {
+                commands.spawn((
+                    Text2dBundle {
+                        text: Text::from_section(
+                            format!("+{} {} XP", experience, skill_name),
+                            TextStyle {
+                                font_size: 24.0,
+                                color: Color::rgb(0.9, 0.9, 0.1),
+                                ..default()
+                            },
+                        ).with_alignment(TextAlignment::Center),
+                        transform: Transform::from_translation(
+                            player_transform.translation + Vec3::new(0.0, 2.0, 0.0)
+                        ),
+                        ..default()
+                    },
+                    FloatingText {
+                        lifetime: Timer::from_seconds(2.0, TimerMode::Once),
+                        velocity: Vec3::new(0.0, 1.0, 0.0),
+                        fade_start: 1.0,
+                    },
+                ));
+            }
 
             // Remove gathering component
             commands.entity(entity).remove::<GatheringInProgress>();
@@ -215,7 +250,7 @@ fn check_resource_interaction(
     if keyboard_input.just_pressed(KeyCode::F) {
         if let Ok(player_transform) = player_query.get_single() {
             // Find the closest resource within interaction range
-            let interaction_range = 2.0;
+            let interaction_range = 3.0; // Increased range for better usability
             let mut closest_resource = None;
             let mut closest_distance = f32::MAX;
 
@@ -237,6 +272,35 @@ fn check_resource_interaction(
             } else {
                 println!("No resources in range to gather.");
             }
+        }
+    }
+}
+
+// System to update floating text effects
+fn update_floating_text(
+    mut commands: Commands,
+    mut text_query: Query<(Entity, &mut FloatingText, &mut Transform, &mut Text)>,
+    time: Res<Time>,
+) {
+    for (entity, mut floating_text, mut transform, mut text) in text_query.iter_mut() {
+        // Update timer
+        floating_text.lifetime.tick(time.delta());
+
+        // Move text upward
+        transform.translation += floating_text.velocity * time.delta_seconds();
+
+        // Fade out text
+        let remaining = floating_text.lifetime.remaining_secs() / floating_text.lifetime.duration().as_secs_f32();
+        if remaining < floating_text.fade_start {
+            let alpha = remaining / floating_text.fade_start;
+            let mut color = text.sections[0].style.color;
+            color.set_a(alpha);
+            text.sections[0].style.color = color;
+        }
+
+        // Remove when timer is finished
+        if floating_text.lifetime.finished() {
+            commands.entity(entity).despawn();
         }
     }
 }

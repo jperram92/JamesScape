@@ -4,6 +4,7 @@ use crate::client::input::Player;
 use crate::shared::components::{Skills, Health};
 use crate::systems::skills_system::{GatheringInProgress, SkillsSettings};
 use crate::systems::combat_system::CombatState;
+use crate::client::terrain::ResourceNodeType;
 
 pub struct UiPlugin;
 
@@ -21,11 +22,30 @@ fn ui_system(
 ) {
     // Game info window
     egui::Window::new("JamesScape").show(contexts.ctx_mut(), |ui| {
-        ui.label("Welcome to JamesScape!");
-        ui.label("Use WASD keys to move the player character.");
-        ui.label("Press F near resources to gather them.");
-        ui.label("Press SPACE to jump.");
-        ui.label("Press Q/E to rotate.");
+        ui.heading("Welcome to JamesScape!");
+
+        ui.collapsing("Controls Guide", |ui| {
+            ui.label("🎮 Movement Controls:");
+            ui.label("• W - Move forward");
+            ui.label("• S - Move backward");
+            ui.label("• A - Move left");
+            ui.label("• D - Move right");
+            ui.label("• SPACE - Jump");
+            ui.label("• Q/E - Rotate camera");
+            ui.separator();
+
+            ui.label("🌲 Gathering Resources:");
+            ui.label("• Approach a resource (tree, rock, ore)");
+            ui.label("• Press F when close to start gathering");
+            ui.label("• Wait for the progress bar to complete");
+            ui.separator();
+
+            ui.label("⚔️ Combat Controls:");
+            ui.label("• 1 - Switch to Melee combat");
+            ui.label("• 2 - Switch to Ranged combat");
+            ui.label("• 3 - Switch to Magic combat");
+            ui.label("• Left Mouse Button - Attack nearby enemy");
+        });
 
         // Display player position if available
         if let Ok((transform, _, health, gathering, combat_state)) = player_query.get_single() {
@@ -69,10 +89,31 @@ fn ui_system(
             // Display gathering progress if applicable
             if let Some(gathering) = gathering {
                 ui.separator();
-                ui.label(format!("Gathering: {:?}", gathering.resource_type));
+
+                // Show gathering activity with emoji and formatted text
+                let (emoji, action, skill) = match gathering.resource_type {
+                    ResourceNodeType::Tree => ("🌲", "Chopping", "Woodcutting"),
+                    ResourceNodeType::Rock => ("🔩", "Mining", "Mining"),
+                    ResourceNodeType::OreDeposit => ("💎", "Mining", "Mining"),
+                    ResourceNodeType::FishingSpot => ("🎣", "Fishing", "Fishing"),
+                };
+
+                ui.heading(format!("{} {} ({})", emoji, action, skill));
+
+                // Show progress with percentage
                 let progress_percent = (gathering.progress / gathering.total_time) * 100.0;
                 ui.label(format!("Progress: {:.1}%", progress_percent));
-                ui.add(egui::ProgressBar::new(gathering.progress / gathering.total_time).show_percentage());
+
+                // Add a colorful progress bar
+                let progress_bar = egui::ProgressBar::new(gathering.progress / gathering.total_time)
+                    .show_percentage()
+                    .animate(true);
+
+                ui.add(progress_bar);
+
+                // Add estimated time remaining
+                let time_remaining = gathering.total_time - gathering.progress;
+                ui.label(format!("Time remaining: {:.1} seconds", time_remaining));
             }
         }
     });
